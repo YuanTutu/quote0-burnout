@@ -2,9 +2,9 @@ name: refresh
 
 on:
   schedule:
-    # 每小时第 37 分钟（UTC）——与 quote0-glm 的 :07 错开，
-    # 两块仪表盘在同一张 Image API 卡片上轮流刷新
-    - cron: '37 * * * *'
+    # 每 15 分钟一次（UTC）。公有仓库 Actions 时长不限量；
+    # 高峰期 scheduled 触发可能延迟几分钟，属正常现象
+    - cron: '7,22,37,52 * * * *'
   workflow_dispatch: {}   # 允许 Actions 页面手动触发
 
 permissions:
