@@ -115,7 +115,8 @@ def main() -> None:
         print(f"stale encrypted state removed (HTTP {s2})")
 
     if args.dispatch:
-        status, resp = api(args.repo, tok, "POST", "actions/workflows/refresh.yml/dispatches", b"{}")
+        status, resp = api(args.repo, tok, "POST", "actions/workflows/refresh.yml/dispatches",
+                           json.dumps({"ref": "main"}).encode())
         print(f"workflow dispatch: HTTP {status}"
               + ("" if status == 204 else f" — {resp}"))
         if status != 204:
