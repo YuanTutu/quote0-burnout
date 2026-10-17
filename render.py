@@ -108,6 +108,59 @@ def _divider(draw, y, dash_len=6, gap_len=4):
     return y + 1
 
 
+def _draw_chatgpt_solo(draw: ImageDraw.ImageDraw, snap: dict):
+    """Full-screen ChatGPT face for the single-provider (codex-only) case.
+
+    Two hero windows (5h / Week): tall dot bars + VCR 21px remaining %,
+    reset countdown on the section head; footer strip with manual reset
+    credits and an OK/WARN/HOT badge."""
+    sn = snap.get("codex", {})
+    label, small, vcr = _op(), _pixel(), _vcr()
+    ts = snap.get("updated_at") or datetime.now().strftime("%H:%M")
+    if snap.get("_cached"):
+        ts += "*"
+
+    draw.text((PAD, 4), "CHATGPT", font=vcr, fill=BLACK)
+    tsw, _ = _tsize(draw, ts, small)
+    draw.text((W - PAD - tsw, 12), ts, font=small, fill=BLACK)
+    _divider(draw, 31)
+
+    def block(top, lbl, used, reset):
+        head = lbl.upper()
+        if reset and reset != "?":
+            head += f"  ·  reset in {reset}"
+        draw.text((PAD, top), head, font=small, fill=BLACK)
+        pct = 100 - used if used is not None else None
+        pct_txt = f"{pct:.0f}%" if pct is not None else "?%"
+        pw, _ = _tsize(draw, pct_txt, vcr)
+        draw.text((W - PAD - pw, top + 10), pct_txt, font=vcr, fill=BLACK)
+        bar_w = W - PAD - pw - 8 - PAD
+        if bar_w > 6 and pct is not None:
+            _bar_dots(draw, PAD, top + 13, bar_w, 16, pct)
+        return top + 29
+
+    y = block(37, f"{sn.get('short_label', '5h')} window",
+              sn.get("short_used_percent"), sn.get("short_reset"))
+    if sn.get("long_used_percent") is not None:
+        _divider(draw, y + 7)
+        block(y + 14, f"{sn.get('long_label', 'Week')} window",
+              sn.get("long_used_percent"), sn.get("long_reset"))
+
+    fy = H - 16
+    _divider(draw, fy - 7)
+    parts = []
+    if sn.get("resets_available") is not None:
+        parts.append(f"RESETS {sn['resets_available']}")
+    if sn.get("reset_expiry"):
+        parts.append(sn["reset_expiry"])
+    if parts:
+        draw.text((PAD, fy), "  ·  ".join(parts), font=small, fill=BLACK)
+    used = sn.get("short_used_percent")
+    badge = "?" if used is None else ("HOT" if used >= 90 else "WARN" if used >= 70 else "OK")
+    bw, _ = _tsize(draw, badge, label)
+    draw.text((W - PAD - bw, fy - 4), badge, font=label, fill=BLACK)
+
+
 def _draw_usage_row(
     draw,
     y,
@@ -318,6 +371,11 @@ def _render_v5(img: Image.Image, draw: ImageDraw.ImageDraw, snap: dict):
         panels.append((t, LOGO_DEEPSEEK, ds, "balance"))
 
     if not panels:
+        return
+
+    # ChatGPT solo face: codex is the only live provider — full-screen layout
+    if cx_ok and not cl_ok and second == "none":
+        _draw_chatgpt_solo(draw, snap)
         return
 
     y = PANEL_Y
