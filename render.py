@@ -109,56 +109,74 @@ def _divider(draw, y, dash_len=6, gap_len=4):
 
 
 def _draw_chatgpt_solo(draw: ImageDraw.ImageDraw, snap: dict):
-    """Full-screen ChatGPT face for the single-provider (codex-only) case.
-
-    Two hero windows (5h / Week): tall dot bars + VCR 21px remaining %,
-    reset countdown on the section head; footer strip with manual reset
-    credits and an OK/WARN/HOT badge."""
+    """Full-screen CHATGPT face mirroring quote0-glm's visual language:
+    VCR wordmark header, 16px row labels + 16px dot bars (fill = remaining)
+    + right-aligned VCR 21px remaining %, dashed dividers at the same
+    anchors, 8px footer with reset countdowns + status badge."""
     sn = snap.get("codex", {})
     label, small, vcr = _op(), _pixel(), _vcr()
     ts = snap.get("updated_at") or datetime.now().strftime("%H:%M")
     if snap.get("_cached"):
         ts += "*"
 
-    draw.text((PAD, 4), "CHATGPT", font=vcr, fill=BLACK)
+    GP = 10                                   # glm-style padding/anchors
+    DIVIDER_TOP, DIVIDER_BOTTOM = 34, 132
+    ROWS_Y0, ROW_PITCH = 48, 40               # 2 rows spread across the band
+    LABEL_W_G, BAR_H_G = 36, 16
+
+    draw.text((GP, 6), "CHATGPT", font=vcr, fill=BLACK)
     tsw, _ = _tsize(draw, ts, small)
-    draw.text((W - PAD - tsw, 12), ts, font=small, fill=BLACK)
-    _divider(draw, 31)
+    draw.text((W - GP - tsw, 8), ts, font=small, fill=BLACK)
+    _divider(draw, DIVIDER_TOP)
 
-    def block(top, lbl, used, reset):
-        head = lbl.upper()
-        if reset and reset != "?":
-            head += f"  ·  reset in {reset}"
-        draw.text((PAD, top), head, font=small, fill=BLACK)
-        pct = 100 - used if used is not None else None
-        pct_txt = f"{pct:.0f}%" if pct is not None else "?%"
-        pw, _ = _tsize(draw, pct_txt, vcr)
-        draw.text((W - PAD - pw, top + 10), pct_txt, font=vcr, fill=BLACK)
-        bar_w = W - PAD - pw - 8 - PAD
-        if bar_w > 6 and pct is not None:
-            _bar_dots(draw, PAD, top + 13, bar_w, 16, pct)
-        return top + 29
+    if sn.get("ok"):
+        def _lbl(raw):
+            raw = raw or "5h"
+            return "Wk" if raw.lower().startswith("week") else raw
+        rows = [(_lbl(sn.get("short_label")), sn.get("short_used_percent")),
+                (_lbl(sn.get("long_label")), sn.get("long_used_percent"))]
+        rows = [(l, u) for l, u in rows if u is not None]
+        notes = [f"{100 - u}%" for _, u in rows]
+        note_w = max((_tsize(draw, n, vcr)[0] for n in notes), default=0)
+        note_x = W - GP - note_w
+        bar_x = GP + LABEL_W_G
+        bar_w = note_x - 6 - bar_x
 
-    y = block(37, f"{sn.get('short_label', '5h')} window",
-              sn.get("short_used_percent"), sn.get("short_reset"))
-    if sn.get("long_used_percent") is not None:
-        _divider(draw, y + 7)
-        block(y + 14, f"{sn.get('long_label', 'Week')} window",
-              sn.get("long_used_percent"), sn.get("long_reset"))
+        y = ROWS_Y0
+        for lbl, used in rows:
+            bar_y = y + 4
+            _, lh = _tsize(draw, lbl, label)
+            draw.text((GP, bar_y + (BAR_H_G - lh) // 2), lbl, font=label, fill=BLACK)
+            remaining = 100 - used
+            note = f"{remaining:.0f}%"
+            nw, nh = _tsize(draw, note, vcr)
+            draw.text((W - GP - nw, y + (BAR_H_G + 8 - nh) // 2), note, font=vcr, fill=BLACK)
+            if bar_w > 6:
+                _bar_dots(draw, bar_x, bar_y, bar_w, BAR_H_G, remaining)
+            y += ROW_PITCH
+    else:
+        err = sn.get("raw_status", "error")
+        draw.text((GP, ROWS_Y0 + 4), str(err)[:24], font=label, fill=BLACK)
+        draw.text((GP, ROWS_Y0 + 28), "check token / network", font=small, fill=BLACK)
 
-    fy = H - 16
-    _divider(draw, fy - 7)
-    parts = []
+    _divider(draw, DIVIDER_BOTTOM)
+    bits = []
+    if sn.get("short_used_percent") is not None and sn.get("short_reset") not in (None, "?"):
+        bits.append(f"5h {sn['short_reset']}")
+    if sn.get("long_used_percent") is not None and sn.get("long_reset") not in (None, "?"):
+        bits.append(f"Wk {sn['long_reset']}")
     if sn.get("resets_available") is not None:
-        parts.append(f"RESETS {sn['resets_available']}")
-    if sn.get("reset_expiry"):
-        parts.append(sn["reset_expiry"])
-    if parts:
-        draw.text((PAD, fy), "  ·  ".join(parts), font=small, fill=BLACK)
-    used = sn.get("short_used_percent")
-    badge = "?" if used is None else ("HOT" if used >= 90 else "WARN" if used >= 70 else "OK")
-    bw, _ = _tsize(draw, badge, label)
-    draw.text((W - PAD - bw, fy - 4), badge, font=label, fill=BLACK)
+        bits.append(f"RESETS {sn['resets_available']}")
+    left = "  ".join(bits)
+    if snap.get("_cached"):
+        left = ("stale  " + left).strip()
+    status = (sn.get("status") or "unknown").upper() if sn.get("ok") else "ERROR"
+    sw, _ = _tsize(draw, status, small)
+    max_left_w = W - 2 * GP - sw - 8
+    while left and _tsize(draw, left, small)[0] > max_left_w:
+        left = left[:-1]
+    draw.text((GP, 139), left, font=small, fill=BLACK)
+    draw.text((W - GP - sw, 139), status, font=small, fill=BLACK)
 
 
 def _draw_usage_row(
