@@ -2,9 +2,9 @@ name: refresh
 
 on:
   schedule:
-    # 每 15 分钟一次（UTC）。公有仓库 Actions 时长不限量；
-    # 高峰期 scheduled 触发可能延迟几分钟，属正常现象
-    - cron: '7,22,37,52 * * * *'
+    # 每 5 分钟一次（UTC，:01 起，与 GLM 的 :03 错开）。
+    # 公有仓库 Actions 时长不限量；高峰期 scheduled 触发可能延迟几分钟
+    - cron: '1-56/5 * * * *'
   workflow_dispatch: {}   # 允许 Actions 页面手动触发
 
 permissions:
@@ -61,7 +61,7 @@ jobs:
           fi
 
       - name: Upload preview
-        if: always()
+        if: failure()   # 5 分钟一次的节奏，只在失败时留产物排查
         uses: actions/upload-artifact@v4
         with:
           name: preview
