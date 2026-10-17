@@ -1,0 +1,67 @@
+name: refresh
+
+on:
+  schedule:
+    # 每小时第 37 分钟（UTC）——与 quote0-glm 的 :07 错开，
+    # 两块仪表盘在同一张 Image API 卡片上轮流刷新
+    - cron: '37 * * * *'
+  workflow_dispatch: {}   # 允许 Actions 页面手动触发
+
+permissions:
+  contents: write   # 刷新后的 token 状态需要提交回仓库
+
+concurrency:
+  group: refresh
+  cancel-in-progress: false   # token 是轮换的，绝不能并行跑
+
+jobs:
+  push:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      QUOTE0_API_KEY: ${{ secrets.QUOTE0_API_KEY }}
+      QUOTE0_DEVICE_ID: ${{ secrets.QUOTE0_DEVICE_ID }}
+      CODEX_REFRESH_TOKEN: ${{ secrets.CODEX_REFRESH_TOKEN }}
+      CODEX_ACCOUNT_ID: ${{ secrets.CODEX_ACCOUNT_ID }}
+      CODEX_STATE_KEY: ${{ secrets.CODEX_STATE_KEY }}
+      CODEX_STATE_FILE: state/codex_tokens.json.enc
+      QUOTE0_PREVIEW_PATH: tmp/preview.png
+      TZ: 'Asia/Shanghai'   # 屏上时间戳时区（运行器默认 UTC）
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: python -m pip install --no-cache-dir -r requirements.txt
+
+      - name: Refresh Codex OAuth token (encrypted state)
+        run: python scripts/gh_refresh_codex_token.py
+
+      - name: Render preview and push to Quote/0
+        run: |
+          python display.py --preview
+          python display.py
+
+      - name: Commit refreshed token state
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add state/codex_tokens.json.enc
+          if git diff --cached --quiet; then
+            echo "token state unchanged — nothing to commit"
+          else
+            git commit -m "chore: rotate codex token state [skip ci]"
+            git pull --rebase --autostash origin main || true
+            git push
+          fi
+
+      - name: Upload preview
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: preview
+          path: tmp/preview.png
+          retention-days: 3

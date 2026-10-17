@@ -73,6 +73,40 @@ python display.py --check      # 自检
 python display.py --list-tasks # 列出任务槽位
 ```
 
+## 部署到 GitHub Actions（Codex 面板，电脑不用常开）
+
+`.github/workflows/refresh.yml` 每小时抓一次 Codex 用量并推送到 Quote/0。ChatGPT 的
+access token 约 10 天过期且 refresh token 一次性轮换，因此工作流自带刷新逻辑，并把
+新 token 加密（密钥在 Secrets）写回仓库 `state/`：
+
+1. fork 本仓库到你的 GitHub 账号
+2. 做一次**仪表盘专用的独立登录**（不要用本地 `~/.codex/auth.json`——轮换式 refresh
+   token 两边共用会互相失效）：
+
+   ```powershell
+   $env:CODEX_HOME = 'E:\Code\Dot\quote0-burnout\tmp\codex-dashboard-home'
+   codex login --device-auth        # 浏览器打开 chatgpt.com/device 输码授权
+   ```
+
+3. 配置仓库 Secrets（`Settings → Secrets and variables → Actions`）：
+   `QUOTE0_API_KEY`、`QUOTE0_DEVICE_ID`、`CODEX_STATE_KEY`（随机串，如
+   `openssl rand -hex 32`）；然后一键联动：
+
+   ```powershell
+   pip install pynacl
+   python scripts/set_codex_secret.py --repo <用户名>/quote0-burnout --dispatch
+   ```
+
+   （该脚本自动上传 `CODEX_REFRESH_TOKEN` / `CODEX_ACCOUNT_ID` 并触发验证运行，
+   凭证取自本机 git credential store，不打印任何密钥。）
+
+4. Actions 页面确认 `refresh` 已启用；运行详情可下载 `preview.png`
+
+注意：GitHub 定时任务与本地计划任务推的是同一张 Image API 卡片，后推送的覆盖先
+推送的；想两块仪表盘同时显示，在 App 播放列表加第二张 Image API 卡片并用
+`QUOTE0_IMAGE_TASK_KEY` / `--list-tasks` 分别固定。刷新失败的分类报错（token
+reused/expired/revoked）都指回 `set_codex_secret.py` 重新联动即可。
+
 ## 定时任务（macOS launchd，每 5 分钟）
 
 ```bash
