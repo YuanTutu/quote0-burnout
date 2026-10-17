@@ -315,9 +315,12 @@ def _second_panel_text(snapshot: dict) -> str:
 def _resolve_image_task() -> tuple[str | None, str | None]:
     """Probe which list holds the IMAGE_API card; return (taskType, taskKey).
 
-    Prefers loop (refreshNow only applies there), then fixed — pushing
-    without taskType assumes loop and 404s when the card lives in the fixed
-    list. Ported from quote0-glm's field-tested fix."""
+    When QUOTE0_IMAGE_TASK_KEY is set, only that card matches (required once
+    the device carries multiple IMAGE_API cards — otherwise every push lands
+    on the first loop card). Without it, first found wins, loop before fixed.
+    Ported from quote0-glm's field-tested fix."""
+    pinned = QUOTE0_IMAGE_TASK_KEY
+    fallback = (None, None)
     for tt in ("loop", "fixed"):
         try:
             r = requests.get(
@@ -329,10 +332,13 @@ def _resolve_image_task() -> tuple[str | None, str | None]:
             if isinstance(data, list):
                 for task in data:
                     if isinstance(task, dict) and task.get("type") == "IMAGE_API":
-                        return tt, task.get("key")
+                        if task.get("key") == pinned:
+                            return tt, task.get("key")
+                        if fallback == (None, None):
+                            fallback = (tt, task.get("key"))
         except (requests.RequestException, ValueError):
             continue
-    return None, None
+    return fallback
 
 
 def push_image(png_bytes: bytes) -> dict:
