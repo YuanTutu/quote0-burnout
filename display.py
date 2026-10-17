@@ -353,8 +353,10 @@ def push_image(png_bytes: bytes) -> dict:
         "taskType": task_type,
         "refreshNow": QUOTE0_REFRESH_NOW and task_type == "loop",
         "image": base64.b64encode(png_bytes).decode(),
-        "ditherType": "DIFFUSION",
-        "ditherKernel": "FLOYD_STEINBERG",
+        # PNG is already strict 1-bit — server-side diffusion dithering only
+        # adds gray haze around pixel glyphs (ghosting). NONE matches the
+        # rendered image exactly (same fix as quote0-glm).
+        "ditherType": "NONE",
         "border": 0,
     }
     if task_key:
