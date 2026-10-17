@@ -312,17 +312,47 @@ def _second_panel_text(snapshot: dict) -> str:
 
 # ── Push ──────────────────────────────────────────────────────────────────────
 
+def _resolve_image_task() -> tuple[str | None, str | None]:
+    """Probe which list holds the IMAGE_API card; return (taskType, taskKey).
+
+    Prefers loop (refreshNow only applies there), then fixed — pushing
+    without taskType assumes loop and 404s when the card lives in the fixed
+    list. Ported from quote0-glm's field-tested fix."""
+    for tt in ("loop", "fixed"):
+        try:
+            r = requests.get(
+                f"{API_BASE}/api/authV2/open/device/{QUOTE0_DEVICE_ID}/{tt}/list",
+                headers={"Authorization": f"Bearer {QUOTE0_API_KEY}"}, timeout=10)
+            if not r.ok:
+                continue
+            data = r.json()
+            if isinstance(data, list):
+                for task in data:
+                    if isinstance(task, dict) and task.get("type") == "IMAGE_API":
+                        return tt, task.get("key")
+        except (requests.RequestException, ValueError):
+            continue
+    return None, None
+
+
 def push_image(png_bytes: bytes) -> dict:
     url = f"{API_BASE}/api/authV2/open/device/{QUOTE0_DEVICE_ID}/image"
+    task_type, task_key = _resolve_image_task()
+    if task_type is None:
+        # probe failed (network, or card removed) — push as loop default so
+        # the server's guided 404 surfaces instead of silently mis-targeting
+        task_type = "loop"
+        task_key = QUOTE0_IMAGE_TASK_KEY or None
     payload = {
-        "refreshNow": QUOTE0_REFRESH_NOW,
+        "taskType": task_type,
+        "refreshNow": QUOTE0_REFRESH_NOW and task_type == "loop",
         "image": base64.b64encode(png_bytes).decode(),
         "ditherType": "DIFFUSION",
         "ditherKernel": "FLOYD_STEINBERG",
         "border": 0,
     }
-    if QUOTE0_IMAGE_TASK_KEY:
-        payload["taskKey"] = QUOTE0_IMAGE_TASK_KEY
+    if task_key:
+        payload["taskKey"] = task_key
     r = requests.post(
         url,
         json=payload,
