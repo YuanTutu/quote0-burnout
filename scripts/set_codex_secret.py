@@ -20,6 +20,7 @@ Secret values are never printed.
 from __future__ import annotations
 
 import argparse
+import base64
 import json
 import subprocess
 import sys
@@ -72,7 +73,7 @@ def put_secret(repo: str, token: str, name: str, value: str) -> None:
         _die(f"fetch public key failed HTTP {status}: {key if isinstance(key, bytes) else key.get('message')}")
     sealed = public.SealedBox(public.PublicKey(key["key"].encode(), encoding.Base64Encoder()))
     body = json.dumps({
-        "encrypted_value": sealed.encrypt(value.encode()).decode(encoding.Base64Encoder()),
+        "encrypted_value": base64.b64encode(sealed.encrypt(value.encode())).decode(),
         "key_id": key["key_id"],
     }).encode()
     status, resp = api(repo, token, "PUT", f"actions/secrets/{name}", body)
