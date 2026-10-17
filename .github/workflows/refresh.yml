@@ -25,6 +25,8 @@ jobs:
       CODEX_ACCOUNT_ID: ${{ secrets.CODEX_ACCOUNT_ID }}
       CODEX_STATE_KEY: ${{ secrets.CODEX_STATE_KEY }}
       CODEX_STATE_FILE: state/codex_tokens.json.enc
+      QUOTE0_IMAGE_TASK_KEY: ${{ secrets.QUOTE0_IMAGE_TASK_KEY }}
+      QUOTE0_REFRESH_NOW: 'true'    # 循环列表卡片推送后立即刷新
       QUOTE0_PREVIEW_PATH: tmp/preview.png
       TZ: 'Asia/Shanghai'   # 屏上时间戳时区（运行器默认 UTC）
     steps:
