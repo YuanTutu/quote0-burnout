@@ -115,18 +115,16 @@ def _draw_chatgpt_solo(draw: ImageDraw.ImageDraw, snap: dict):
     anchors, 8px footer with reset countdowns + status badge."""
     sn = snap.get("codex", {})
     label, small, vcr = _op(), _pixel(), _vcr()
-    ts = snap.get("updated_at") or datetime.now().strftime("%H:%M")
-    if snap.get("_cached"):
-        ts += "*"
 
     GP = 10                                   # glm-style padding/anchors
     DIVIDER_TOP, DIVIDER_BOTTOM = 34, 132
     ROWS_Y0, ROW_PITCH = 48, 40               # 2 rows spread across the band
     LABEL_W_G, BAR_H_G = 36, 16
 
+    # NB: the caller (_render_v5) already draws the top-right timestamp
+    # before dispatching here — drawing it again at these glm-style anchors
+    # offset it by (4,4)px and read as ghosting on the e-ink panel.
     draw.text((GP, 6), "CHATGPT", font=vcr, fill=BLACK)
-    tsw, _ = _tsize(draw, ts, small)
-    draw.text((W - GP - tsw, 8), ts, font=small, fill=BLACK)
     _divider(draw, DIVIDER_TOP)
 
     if sn.get("ok"):
