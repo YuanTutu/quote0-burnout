@@ -2,9 +2,9 @@ name: refresh
 
 on:
   schedule:
-    # 每 10 分钟一次（UTC，:01 起，与 GLM 的 :03 错开）。
-    # 公有仓库 Actions 时长不限量；高峰期 scheduled 触发可能延迟几分钟
-    - cron: '1-51/10 * * * *'
+    # 每 30 分钟一次（UTC，:01/:31，与 GLM 的 :03/:33 错开）。
+    # 实测 10 分钟档会被 GitHub 节流到约 2 小时一次；30 分钟是可靠兑现的档位
+    - cron: '1,31 * * * *'
   workflow_dispatch: {}   # 允许 Actions 页面手动触发
 
 permissions:
